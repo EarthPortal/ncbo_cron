@@ -1,3 +1,21 @@
+# Start simplecov if this is a coverage task or if it is run in the CI pipeline
+if ENV['COVERAGE'] == 'true' || ENV['CI'] == 'true'
+  require 'simplecov'
+  require 'simplecov-cobertura'
+  # https://github.com/codecov/ruby-standard-2
+  # Generate HTML and Cobertura reports which can be consumed by codecov uploader
+  SimpleCov.formatters = SimpleCov::Formatter::MultiFormatter.new([
+    SimpleCov::Formatter::HTMLFormatter,
+    SimpleCov::Formatter::CoberturaFormatter
+  ])
+  SimpleCov.start do
+    add_filter '/test/'
+    add_filter 'app.rb'
+    add_filter 'init.rb'
+    add_filter '/config/'
+  end
+end
+
 require 'ontologies_linked_data'
 require_relative '../lib/ncbo_cron'
 require_relative '../config/config'
@@ -7,7 +25,7 @@ Goo.use_cache = false # Make sure tests don't cache
 require 'test/unit'
 
 # Check to make sure you want to run if not pointed at localhost
-safe_host = Regexp.new(/localhost|-ut|ncbo-dev*|ncbo-unittest*/)
+safe_host = Regexp.new(/localhost|-ut/)
 unless LinkedData.settings.goo_host.match(safe_host) &&
        LinkedData.settings.search_server_url.match(safe_host) &&
        NcboCron.settings.redis_host.match(safe_host)
@@ -38,16 +56,22 @@ class CronUnit < MiniTest::Unit
     return 0
   end
 
-  def backend_4s_delete
+  def backend_triplestore_delete
     raise StandardError, 'Too many triples in KB, does not seem right to run tests' unless
           count_pattern('?s ?p ?o') < 400000
 
-    LinkedData::Models::Ontology.where.include(:acronym).each do |o|
-      query = "submissionAcronym:#{o.acronym}"
-      LinkedData::Models::Ontology.unindexByQuery(query)
-    end
+    # LinkedData::Models::Ontology.where.include(:acronym).each do |o|
+    #   query = "submissionAcronym:#{o.acronym}"
+    #   LinkedData::Models::Ontology.unindexByQuery(query)
+    # end
+    #
     LinkedData::Models::Ontology.indexCommit
-    Goo.sparql_update_client.update('DELETE {?s ?p ?o } WHERE { ?s ?p ?o }')
+
+    graphs = Goo.sparql_query_client.query("SELECT DISTINCT  ?g WHERE  { GRAPH ?g { ?s ?p ?o . } }")
+    graphs.each_solution do |sol|
+      Goo.sparql_data_client.delete_graph(sol[:g])
+    end
+
     LinkedData::Models::SubmissionStatus.init_enum
     LinkedData::Models::OntologyFormat.init_enum
     LinkedData::Models::OntologyType.init_enum
@@ -71,7 +95,7 @@ class CronUnit < MiniTest::Unit
   end
 
   def _run_suite(suite, type)
-    backend_4s_delete
+    backend_triplestore_delete
     suite.before_suite if suite.respond_to?(:before_suite)
     super(suite, type)
   rescue Exception => e
@@ -80,7 +104,7 @@ class CronUnit < MiniTest::Unit
     puts 'Traced from:'
     raise e
   ensure
-    backend_4s_delete
+    backend_triplestore_delete
     suite.after_suite if suite.respond_to?(:after_suite)
   end
 end

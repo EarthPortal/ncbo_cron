@@ -49,7 +49,7 @@ opt_parser = OptionParser.new do |opts|
     options[:generate_dictionary] = true
   end
 
-  options[:logfile] = "logs/annotator_cache.log"
+  options[:logfile] = STDOUT
   opts.on('-l', '--logfile FILE', "Write log to FILE (default is 'logs/annotator_cache.log').") do |filename|
     options[:logfile] = filename
   end
@@ -86,12 +86,13 @@ elsif (options[:remove_cache])
   puts "You are about to clear the alternate Annotator cache repository and kick off a lengthy re-population process. Are you sure?"
 end
 
+=begin
 if (options[:remove_cache])
   puts "Type 'yes' to continue: "
   $stdout.flush
   confirm = $stdin.gets
   abort("Aborting...\n\n") unless (confirm.strip == 'yes')
-end
+=end
 
 puts "Processing details are logged to #{options[:logfile]}"
 msg = ""

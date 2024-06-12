@@ -41,14 +41,14 @@ class TestOntologyPull < TestCase
     @@redis.del NcboCron::Models::OntologySubmissionParser::QUEUE_HOLDER
   end
 
-  def test_remote_ontology_pull()
+  def test_remote_ontology_pull
     ontologies = init_ontologies(1)
     ont = LinkedData::Models::Ontology.find(ontologies[0].id).first
     ont.bring(:submissions) if ont.bring?(:submissions)
     assert_equal 1, ont.submissions.length
 
     pull = NcboCron::Models::OntologyPull.new
-    pull.do_remote_ontology_pull()
+    pull.do_remote_ontology_pull
 
     # check that the pull creates a new submission when the file has changed
     ont = LinkedData::Models::Ontology.find(ontologies[0].id).first
@@ -72,7 +72,33 @@ class TestOntologyPull < TestCase
     ont = LinkedData::Models::Ontology.find(ontologies[0].id).first
     ont.bring(:submissions) if ont.bring?(:submissions)
     assert_equal 2, ont.submissions.length
-    pull.do_remote_ontology_pull()
+    pull.do_remote_ontology_pull
+    assert_equal 2, ont.submissions.length
+  end
+
+  def test_remote_pull_parsing_action
+    ontologies = init_ontologies(1, process_submissions: true)
+    ont = LinkedData::Models::Ontology.find(ontologies[0].id).first
+    ont.bring(:submissions) if ont.bring?(:submissions)
+    assert_equal 1, ont.submissions.length
+
+    # add this ontology to submission queue with :remote_pull action enabled
+    parser = NcboCron::Models::OntologySubmissionParser.new
+    actions = NcboCron::Models::OntologySubmissionParser::ACTIONS.dup
+    actions[:remote_pull] = true
+    parser.queue_submission(ont.submissions[0], actions)
+    parser.process_queue_submissions
+
+    # make sure there are now 2 submissions present
+    ont = LinkedData::Models::Ontology.find(ontologies[0].id).first
+    ont.bring(:submissions) if ont.bring?(:submissions)
+    assert_equal 2, ont.submissions.length
+
+    # verify that no new submission is created when the file has not changed
+    parser.queue_submission(ont.submissions[0], actions)
+    parser.process_queue_submissions
+    ont = LinkedData::Models::Ontology.find(ontologies[0].id).first
+    ont.bring(:submissions) if ont.bring?(:submissions)
     assert_equal 2, ont.submissions.length
   end
 
@@ -130,7 +156,7 @@ class TestOntologyPull < TestCase
       pull = NcboCron::Models::OntologyPull.new
       pull.do_remote_ontology_pull
 
-      assert last_email_sent.subject.include? "[BioPortal] Load from URL failure for #{ont.name}"
+      assert last_email_sent.subject.include? "Load from URL failure for #{ont.name}"
       user = ont.administeredBy[0]
       user.bring(:email)
       assert (last_email_sent.to.first.include? user.email) || (last_email_sent.header['Overridden-Sender'].value.include? user.email)
@@ -164,15 +190,16 @@ class TestOntologyPull < TestCase
 
   private
 
-  def init_ontologies(submission_count)
-    ont_count, acronyms, ontologies = LinkedData::SampleData::Ontology.create_ontologies_and_submissions(ont_count: 1, submission_count: submission_count, process_submission: false)
+  def init_ontologies(submission_count, process_submissions = false)
+    ont_count, acronyms, ontologies = LinkedData::SampleData::Ontology.create_ontologies_and_submissions(
+                            ont_count: 1, submission_count: submission_count, process_submission: process_submissions)
     ontologies[0].bring(:submissions) if ontologies[0].bring?(:submissions)
     ontologies[0].submissions.each do |sub|
       sub.bring_remaining()
       sub.pullLocation = RDF::IRI.new(@@url)
       sub.save() rescue binding.pry
     end
-    return ontologies
+    ontologies
   end
 
 end

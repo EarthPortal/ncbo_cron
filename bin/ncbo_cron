@@ -111,19 +111,9 @@ opt_parser = OptionParser.new do |opts|
   opts.on("--disable-update-check", "disable check for updated version of Ontoportal (for VMs)", "(default: #{options[:enable_update_check]})") do |v|
     options[:enable_update_check] = false
   end
-
-
-
-
-  opts.on("--disable-dictionary-generation", "disable mgrep dictionary generation job", "(default: #{options[:enable_dictionary_generation]})") do |v|
-    options[:enable_dictionary_generation] = false
+  opts.on("--enable-dictionary-generation-cron-job", "ENABLE mgrep dictionary generation JOB and DISABLE dictionary generation during ontology processing. If this is not passed in, dictionary is generated every time an ontology is processed.", "(default: Dictionary is generated on every ontology processing, CRON job is DISABLED)") do |v|
+    options[:enable_dictionary_generation_cron_job] = true
   end
-
-
-
-
-
-
   opts.on("--disable-obofoundry_sync", "disable OBO Foundry synchronization report", "(default: #{options[:enable_obofoundry_sync]})") do |v|
     options[:enable_obofoundry_sync] = false
   end
@@ -133,8 +123,14 @@ opt_parser = OptionParser.new do |opts|
   opts.on("-c", "--pull-cron SCHED", String, "cron schedule for ontology pull", "(default: #{options[:pull_schedule]})") do |c|
     options[:pull_schedule] = c
   end
+  opts.on("-cl", "--pull-long-cron SCHED", String, "cron schedule for ontology less frequent pull", "(default: #{options[:pull_schedule_long]})") do |c|
+    options[:pull_schedule_long] = c
+  end
   opts.on("-f", "--flush-old-graphs SCHED", String, "cron schedule to delete class graphs of archive submissions", "(default: #{options[:cron_flush]})") do |c|
     options[:cron_flush] = c
+  end
+  opts.on("--remove-zombie-graphs", "flush class graphs from deleted ontologies") do |v|
+    options[:remove_zombie_graphs] = true
   end
   opts.on("-w", "--warm-long-queries SCHED", String, "cron schedule to warmup long time running queries", "(default: #{options[:cron_warmq]})") do |c|
     options[:cron_warmq] = c
@@ -160,17 +156,9 @@ opt_parser = OptionParser.new do |opts|
   opts.on("--obofoundry_sync SCHED", String, "cron schedule to run OBO Foundry synchronization report", "(default: #{options[:cron_obofoundry_sync]})") do |c|
     options[:cron_obofoundry_sync] = c
   end
-
-
-
-
-  opts.on("--dictionary-generation SCHED", String, "cron schedule to run mgrep dictionary generation job", "(default: #{options[:cron_dictionary_generation]})") do |c|
-    options[:cron_dictionary_generation] = c
+  opts.on("--dictionary-generation-cron-job SCHED", String, "cron schedule to run mgrep dictionary generation job (if enabled)", "(default: #{options[:cron_dictionary_generation_cron_job]})") do |c|
+    options[:cron_dictionary_generation_cron_job] = c
   end
-
-
-
-
 
   # Display the help screen, all programs are assumed to have this option.
   opts.on_tail('--help', 'Display this screen') do
@@ -275,8 +263,8 @@ runner.execute do |opts|
 
   if options[:enable_pull]
     pull_thread = Thread.new do
-      logger.debug "Setting up pull cron job"; logger.flush
       pull_options = options.dup
+      logger.info "Setting up pull cron job: #{pull_options[:pull_schedule]}"; logger.flush
       pull_options.delete(:minutes_between)
       pull_options.delete(:seconds_between)
       pull_options[:job_name] = "ncbo_cron_pull_thread"
@@ -288,15 +276,32 @@ runner.execute do |opts|
         logger.info "Starting ncbo pull"; logger.flush
         logger.info "Logging pull details to #{pull_log_path}"; logger.flush
         puller = NcboCron::Models::OntologyPull.new
-        pulled_onts = puller.do_remote_ontology_pull(logger: pull_logger,
-                                                     enable_pull_umls: options[:enable_pull_umls],
-                                                     cache_clear: true)
+        pulled_onts = puller.do_remote_ontology_pull(false, logger: pull_logger, enable_pull_umls: options[:enable_pull_umls], pull_long_ontologies: pull_options[:pull_long_ontologies])
         logger.info "Finished ncbo pull"; logger.flush
         logger.info "Pull summary:\n#{pulled_onts.map {|o| o.id.to_s}}"
       end
     end
+
+    long_pull_thread = Thread.new do
+      long_pull_options = options.dup
+      logger.info "Setting up pull long cron job: #{long_pull_options[:pull_schedule_long]}"; logger.flush
+      long_pull_options[:job_name] = "ncbo_cron_pull_long_thread"
+      long_pull_options[:scheduler_type] = :cron
+      long_pull_options[:cron_schedule] = long_pull_options[:pull_schedule_long]
+      pull_log_path = File.join(log_path, "#{log_filename_noExt}-long-pull.log")
+      pull_logger = Logger.new(pull_log_path)
+      NcboCron::Scheduler.scheduled_locking_job(long_pull_options) do
+        logger.info "Starting ncbo long pull"; logger.flush
+        logger.info "Logging pull details to #{pull_log_path}"; logger.flush
+        long_puller = NcboCron::Models::OntologyPull.new
+        pulled_long_onts = long_puller.do_remote_ontology_pull(true, logger: pull_logger, enable_pull_umls: options[:enable_pull_umls], pull_long_ontologies: long_pull_options[:pull_long_ontologies])
+        logger.info "Finished ncbo pull"; logger.flush
+        logger.info "Pull summary:\n#{pulled_long_onts.map {|o| o.id.to_s}}"
+      end
+    end
   end
 
+  # Flush old graphs. Remove zombie graphs if config.remove_zombie_graphs = true
   if options[:enable_flush]
     flush_thread = Thread.new do
       flush_options = options.dup
@@ -313,7 +318,7 @@ runner.execute do |opts|
         logger.info "Logging flush details to #{flush_log_path}"; logger.flush
         t0 = Time.now
         parser = NcboCron::Models::OntologySubmissionParser.new
-        flush_onts = parser.process_flush_classes(flush_logger)
+        flush_onts = parser.process_flush_classes(flush_logger, flush_options[:remove_zombie_graphs])
         logger.info "Flushed #{flush_onts.length} submissions in #{Time.now - t0} sec."; logger.flush
         logger.info "Finished flush"; logger.flush
       end
@@ -376,7 +381,7 @@ runner.execute do |opts|
         logger.info "Logging ontology analytics refresh details to #{ontology_analytics_log_path}"; logger.flush
         t0 = Time.now
         # Generate ontology analytics
-        NcboCron::Models::OntologyAnalytics.new(ontology_analytics_logger).run
+        NcboCron::Models::ObjectAnalyticsJob.new(logger).run
         # Generate ontology ranking
         NcboCron::Models::OntologyRank.new(ontology_analytics_logger).run
         logger.info "Ontology analytics refresh job completed in #{Time.now - t0} sec."; logger.flush
@@ -484,48 +489,26 @@ runner.execute do |opts|
     end
   end
 
-
-
-
-
-
-
-
-  # temporary job to generate mgrep dictionary file
+  # optional job to generate mgrep dictionary file
   # separate from ontology processing due to
   # https://github.com/ncbo/ncbo_cron/issues/45
-
-  if options[:enable_dictionary_generation]
+  if options[:enable_dictionary_generation_cron_job]
     dictionary_generation_thread = Thread.new do
       dictionary_generation_options = options.dup
-      dictionary_generation_options[:job_name] = "ncbo_cron_dictionary_generation"
+      dictionary_generation_options[:job_name] = "ncbo_cron_dictionary_generation_cron_job"
       dictionary_generation_options[:scheduler_type] = :cron
-      dictionary_generation_options[:cron_schedule] = dictionary_generation_options[:cron_dictionary_generation]
-      logger.info "Setting up mgrep dictionary generation job with #{dictionary_generation_options[:cron_dictionary_generation]}"; logger.flush
+      dictionary_generation_options[:cron_schedule] = dictionary_generation_options[:cron_dictionary_generation_cron_job]
+      logger.info "Setting up mgrep dictionary generation job with #{dictionary_generation_options[:cron_dictionary_generation_cron_job]}"; logger.flush
       NcboCron::Scheduler.scheduled_locking_job(dictionary_generation_options) do
-        logger.info "Starting mgrep dictionary generation..."; logger.flush
+        logger.info "Starting mgrep dictionary generation CRON job..."; logger.flush
         t0 = Time.now
         annotator = Annotator::Models::NcboAnnotator.new
         annotator.generate_dictionary_file()
-        logger.info "mgrep dictionary generation job completed in #{Time.now - t0} sec."; logger.flush
-        logger.info "Finished mgrep dictionary generation"; logger.flush
+        logger.info "mgrep dictionary generation CRON job completed in #{Time.now - t0} sec."; logger.flush
+        logger.info "Finished mgrep dictionary generation CRON job"; logger.flush
       end
     end
   end
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   # Print running child processes
   require 'sys/proctable'
@@ -540,6 +523,7 @@ runner.execute do |opts|
   # Need to join here to avoid dropping out of the process
   parsing_thread.join if parsing_thread
   pull_thread.join if pull_thread
+  long_pull_thread.join if long_pull_thread
   flush_thread.join if flush_thread
   warmq_thread.join if warmq_thread
   analytics_thread.join if analytics_thread
@@ -549,12 +533,5 @@ runner.execute do |opts|
   mapping_counts_thread.join if mapping_counts_thread
   update_check_thread.join if update_check_thread
   obofoundry_sync_thread.join if obofoundry_sync_thread
-
-
-
-
   dictionary_generation_thread.join if dictionary_generation_thread
-
-
-
 end
