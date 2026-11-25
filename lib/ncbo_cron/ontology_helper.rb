@@ -19,6 +19,7 @@ module NcboCron
         :diff => true,
         :generate_foops => true,
         :generate_oops => true,
+        :generate_vowl => true,
         :remote_pull => false
       }
 
