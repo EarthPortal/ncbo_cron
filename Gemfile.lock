@@ -283,12 +283,6 @@ GEM
     nokogiri (1.18.10)
       mini_portile2 (~> 2.8.2)
       racc (~> 1.4)
-    nokogiri (1.18.10-arm64-darwin)
-      racc (~> 1.4)
-    nokogiri (1.18.10-x86_64-darwin)
-      racc (~> 1.4)
-    nokogiri (1.18.10-x86_64-linux)
-      racc (~> 1.4)
     oj (3.17.8)
       bigdecimal (>= 3.0)
     omni_logger (0.1.4)
@@ -439,6 +433,7 @@ DEPENDENCIES
   ncbo_cron!
   net-ftp
   net-smtp
+  nokogiri
   oj
   ontologies_linked_data!
   ontoportal_testkit!

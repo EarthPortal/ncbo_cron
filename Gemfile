@@ -66,3 +66,6 @@ gem 'net-smtp'
 gem 'net-ftp'
 # earthportal/ontologies_linked_data requires rubyzip 1.3.0 (its gemspec)
 gem 'rubyzip', '1.3.0'
+# Ruby 3.1.0 ships RubyGems 3.3.3, too old for the precompiled nokogiri gems (they need >= 3.3.22):
+# build it from source, as ontologies_api does on the server
+gem 'nokogiri', force_ruby_platform: true
