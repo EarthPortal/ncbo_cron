@@ -8,7 +8,6 @@ config/*.p12
 config/*.json
 data/
 projectFilesBackup/
-.ruby-version
 repo*
 *.turtle
 *.swp
@@ -37,3 +36,5 @@ processed_files/
 queries.txt
 
 graph_comparison.csv
+
+.env

@@ -9,8 +9,9 @@ gemspec
 gem "google-apis-analytics_v3"
 gem 'google-analytics-data', '0.6.0'
 gem 'google-protobuf', '3.25.3'
+gem 'grpc', '1.70.1'
 gem 'mail', '2.6.6'
-gem 'multi_json'
+gem 'multi_json', '1.19.1'
 gem 'oj'
 gem 'parseconfig'
 gem 'pony'
@@ -22,15 +23,14 @@ gem 'sys-proctable'
 gem 'request_store'
 gem 'parallel'
 gem 'json-ld'
-gem 'ffi', '~> 1.15.0'
-gem 'activesupport', '~> 5.0'
+gem 'ffi', '1.15.0'
+gem 'activesupport', '~> 8.1'
 gem 'rackup'
 
 
-gem 'goo', github: 'ontoportal-lirmm/goo', branch: 'feature/migrate-ruby-3.2'
-gem 'ontologies_linked_data', github: 'ontoportal-lirmm/ontologies_linked_data', branch: 'feature/migrate-ruby-3.2'
-gem 'sparql-client', github: 'ontoportal-lirmm/sparql-client', branch: 'development'
-gem 'ncbo_annotator', github: 'ontoportal-lirmm/ncbo_annotator', branch: 'development'
+gem 'goo', github: 'ontoportal/goo', branch: 'master'
+gem 'ontologies_linked_data', github: 'agroportal/ontologies_linked_data', branch: 'master'
+gem 'ncbo_annotator', github: 'ontoportal/ncbo_annotator', branch: 'master'
 
 # Testing
 group :test do
@@ -43,6 +43,7 @@ group :test do
   gem 'webmock'
   gem "minitest-hooks", "~> 1.5"
   gem 'webrick'
+  gem 'ontoportal_testkit', github: 'ontoportal/ontoportal_testkit', branch: 'main'
 end
 
 group :development do
@@ -60,3 +61,4 @@ gem "binding_of_caller", "~> 1.0"
 gem 'concurrent-ruby', '1.3.4'
 gem 'net-smtp'
 gem 'net-ftp'
+gem 'rubyzip', '~> 3.0'
