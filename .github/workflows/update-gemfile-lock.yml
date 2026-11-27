@@ -19,7 +19,8 @@ permissions:
 
 jobs:
   update-lock:
-    runs-on: ubuntu-latest
+    # Ruby 3.1.0 (.ruby-version) has no ruby/setup-ruby build for ubuntu-latest (26.04)
+    runs-on: ubuntu-24.04
     env:
       # One branch per base branch, so re-running the workflow updates the open PR
       # instead of piling up new ones.
