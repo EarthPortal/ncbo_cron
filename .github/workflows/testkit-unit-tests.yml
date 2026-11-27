@@ -32,7 +32,8 @@ jobs:
 
   test:
     needs: prepare
-    runs-on: ubuntu-latest
+    # Ruby 3.1.0 (.ruby-version) has no ruby/setup-ruby build for ubuntu-latest (26.04)
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false

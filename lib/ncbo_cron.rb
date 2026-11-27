@@ -1,3 +1,6 @@
+# EarthPortal: goo (ontoportal-lirmm) and ontologies_linked_data use ActiveSupport extensions (blank?, Time.zone)
+# without loading ActiveSupport itself; the API loads all of it (active_support/all), the cron has to as well
+require 'active_support/all'
 require 'logger'
 require 'redis'
 require 'oj'

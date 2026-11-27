@@ -24,13 +24,16 @@ gem 'request_store'
 gem 'parallel'
 gem 'json-ld'
 gem 'ffi', '1.15.0'
-gem 'activesupport', '~> 8.1'
+# activesupport 8 needs Ruby >= 3.2: EarthPortal runs Ruby 3.1.0 (same version as ontologies_api)
+gem 'activesupport', '~> 7.2'
 gem 'rackup'
 
 
-gem 'goo', github: 'ontoportal/goo', branch: 'master'
-gem 'ontologies_linked_data', github: 'agroportal/ontologies_linked_data', branch: 'master'
-gem 'ncbo_annotator', github: 'ontoportal/ncbo_annotator', branch: 'master'
+# EarthPortal: same data model and gem sources as earthportal/ontologies_api (one model on the triplestore)
+gem 'goo', github: 'ontoportal-lirmm/goo', branch: 'development'
+gem 'sparql-client', github: 'ontoportal-lirmm/sparql-client', branch: 'development'
+gem 'ontologies_linked_data', github: 'earthportal/ontologies_linked_data', branch: 'master'
+gem 'ncbo_annotator', github: 'ontoportal-lirmm/ncbo_annotator', branch: 'development'
 
 # Testing
 group :test do
@@ -61,4 +64,8 @@ gem "binding_of_caller", "~> 1.0"
 gem 'concurrent-ruby', '1.3.4'
 gem 'net-smtp'
 gem 'net-ftp'
-gem 'rubyzip', '~> 3.0'
+# earthportal/ontologies_linked_data requires rubyzip 1.3.0 (its gemspec)
+gem 'rubyzip', '1.3.0'
+# Ruby 3.1.0 ships RubyGems 3.3.3, too old for the precompiled nokogiri gems (they need >= 3.3.22):
+# build it from source, as ontologies_api does on the server
+gem 'nokogiri', force_ruby_platform: true

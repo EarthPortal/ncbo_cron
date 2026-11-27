@@ -1,12 +1,14 @@
 # syntax=docker/dockerfile:1
 
-# Set from .ruby-version, the single Ruby pin: by ontoportal_testkit for the
-# test image, by docker-image.yml for the production one
+# Set from .ruby-version by ontoportal_testkit and docker-image.yml (not used for the image tag below)
 ARG OPTK_RUBY_VERSION
+# EarthPortal: the server runs Ruby 3.1.0 (.ruby-version), which has no bookworm image, and bullseye
+# is no longer installable (end of Debian LTS). The containers use the latest Ruby 3.1.x on bookworm.
+ARG RUBY_IMAGE_VERSION=3.1
 ARG DISTRO_NAME=slim-bookworm
 
 # OS, Java, Raptor and gems shared by both images, so CI tests the runtime we ship
-FROM ruby:${OPTK_RUBY_VERSION}-${DISTRO_NAME} AS base
+FROM ruby:${RUBY_IMAGE_VERSION}-${DISTRO_NAME} AS base
 
 WORKDIR /srv/ontoportal/ncbo_cron
 
@@ -36,7 +38,8 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN gem install bundler
+# Same Bundler as Gemfile.lock (BUNDLED WITH) and the server; the latest one needs Ruby >= 3.2
+RUN gem install bundler -v 2.6.7
 
 COPY Gemfile* *.gemspec ./
 
